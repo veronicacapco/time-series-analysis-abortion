@@ -10,4 +10,4 @@ This project investigates the trends in abortion rates in the United States usin
 
 ### Contact
 - LinkedIn: https://linkedin.com/in/capco
-- Project Link: https://github.com/veronicacapco/time-series-abortion
+- Project Link: https://github.com/veronicacapco/time-series-analysis-abortion
