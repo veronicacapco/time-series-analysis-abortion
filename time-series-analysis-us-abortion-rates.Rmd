@@ -1,0 +1,231 @@
+---
+title: "Time Series Analysis of Abortion Rates in the Unites States from 1973 to 2016"
+author: "by Veronica Rae Capco"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Abstract
+
+This project investigates the trends in abortion rates in the United States using data from 1973 to 2016, using Seasonal ARIMA modeling (SARIMA) and Threshold Autoregressive modeling (TAR). It can be seen through the time series plots that abortion rates for women in the United States have been on a decline, and that the ACF plots show that these rates are non-stationary. This project investigates possible reasons for that decline as well as predicting future values of abortion rates. Using the statistical methods mentioned earlier, I have found that abortions rates are likely to stay on this decline for the coming years. The results from the TAR modeling using a threshold = 0.05 show that the trend is consistent with the original data. With these findings, we can use the information obtained from the analysis and graphs to determine possible sudden changes with abortion rates and look deeper into what threshold parameters can say about the future of abortion in the United States.
+
+\newpage
+
+# 1 Introduction
+
+Abortion has had a long history in the United States, from significant court cases such as Roe v. Wade to the more recent Pro-Life movement. Abortion has existed for a very long time, but it wasn't until the mid-1800s when attitudes around abortion in the United States had changed. Since each state in the United States controls their own laws to abortion, some states have passed their own anti-abortion laws which have caused a lot of uproar considering there exists other states with less restrictions on abortion. Today, abortion remains a highly-controversial political and religious topic, and it is likely to remain that way in the next several years.
+
+My project examines the time series of abortion rates in the United States from the years 1973 to 2016. Of course, the data I used only tracked abortions done in a professional medical setting, but there is no denying the fact that abortions under the table have occurred and continue to occur. I chose this data set because I have always been interested in statistics related to health and I thought it would be interesting to investigate data about a heavily-debated topic in the United States. With the overturn of Roe v. Wade in 2022, reproductive rights remains a hot topic in the US.
+
+The purpose is to develop a better understanding of abortion trends in the United States and how external factors may affect these trends. In the past, my chosen data set has been used to track rates of pregnancy, birth, and abortion rates across the states and has been analyzed reproductive trends within age groups of women. An important discovering from the data set is the significant decrease in abortion rates over the past few decades, for women ages 15-44. I will be applying the following methods: SARIMA modeling and Threshold Autoregressive modeling. I decided on these methods because they will determine future predicted values of the abortion rates in the United States, as well as analyzing what thresholds trigger sudden changes in the abortion rates, which can be seen as having a non-linear relationship with time.
+
+\newpage
+
+# 2 Data
+
+My data set contains data about pregnancy, birth, and abortion rates in the United States from 1973 to 2016. It contains 5 variables with 23172 observations. The five variables are Year, State, Metric, Age Range, and Events per 1000 women with the pregnancy, birth, and abortion rates recorded in occurrences per 1000 women. The data was collected by several national data collection sources such as the US Census Bureau, National Center for Health Statistics, the CDC, and the Guttmacher Institute Abortion Provider Census. Birth and age data were collected from birth certificates and abortion rates were calculated from surveys conducted by the abortion census. For some years, surveys were not conducted so abortion rates were calculated using linear interpolation. Authors Isaac Maddow-Zimmet, Kathryn Kost, and Sean Finn of Guttmacher Institute used those sources to compile estimates of the data.
+
+I found this data set on data.world but the original source is actually from OSF. I chose this data set because it had a good number of observation and had exactly what I was looking for: abortion rates by state in the United States. This data set is important because it gives us a lot of information about trends in pregnancy, birth, and abortion. Studying it can help us make better decisions about reproductive care and education. 
+
+**webpage links:**  
+https://data.world/vizwiz/pregnancy-birth-abortion-rates-in-the-united-states  
+https://www.guttmacher.org/report/pregnancies-births-abortions-in-united-states-1973-2016
+
+### Uploading Packages
+
+```{r, results='hide', echo=FALSE}
+library(astsa) 
+library(forecast)
+library(dplyr)
+library(tsDyn)
+library(ggplot2)
+```
+
+### Cleaning the Data
+
+```{r, echo=FALSE}
+abortion_raw <- read.csv('/Users/veronicacapco/Desktop/abortion.csv')
+abortion <- abortion_raw %>% group_by(Metric) %>% filter(Metric == "Abortion Rate")
+abortion <- abortion %>% filter(State == "US") %>% filter(Age.Range == "Total")
+abortion <- abortion %>% select(c("Metric", "Year", Total = "Events.per.1.000.women"))
+abortion <- abortion[c(2, 3)]
+
+head(abortion_raw)
+head(abortion)
+```
+
+\newpage
+
+# 3 Methodology
+
+For the first method, I am going to be fitting a seasonal (S)ARIMA model for abortion rates in the United States from 1973 to 2016. The abortion rates are in recorded in events per 1000 women. I will be generating new data for each month of each year from the years 1973 to 2016 in order to predict abortion rates by month for the next 12 months. After doing so, I will be creating a time series for this new generated data and then fitting a seasonal ARIMA model using that time series.
+
+For the second method, I am going to use a Threshold Autoregressive model and use the SETAR (Self Exciting Threshold Autoregression) function to perform the analysis. A Threshold Autoregressive model (TAR) is used in various fields, particularly with fickle data, because this model is uses thresholds to determine sudden changes in data. Using the `setar` function from the tsDyn library, I can generate a summary of the low regimes, high regimes, thresholds, and residuals which are necessary for analysis.
+
+## 3.1 SARIMA (p, d, q) x (P, D, Q) Model
+
+The fitted Seasonal ARIMA model is ARIMA(4,2,3)(1,0,1)[12].
+
+```{r, echo=FALSE}
+# generate new monthly data for each year from 1973 to 2016
+set.seed(26)
+abortion_monthly <- data.frame()
+for (i in 1:44) {
+  value <- abortion[i, 2] # the rate in year i
+  value <- as.numeric(value)
+  x <- runif(12, min = value - 1 , max = value + 1) # generated values
+  y <- abortion[i, 1] # year
+  y <- as.numeric(y)
+  x <- round(x, digits = 1) # round to one decimal place
+  df <- data.frame(Year = y, Events = x)
+  abortion_monthly <- rbind(abortion_monthly, df)
+}
+
+# create time series for the data
+ts_abortion <- ts(data = abortion$Total, start = 1973, end = 2016)   # yearly time series
+ts_abortion_monthly <- ts(data = abortion_monthly$Events,            # monthly time series
+                          start = 1973, end = 2016, frequency = 12)
+
+# seasonal ARIMA model using time series
+sarimaModel <- auto.arima(ts_abortion_monthly, seasonal = TRUE)
+sarimaModel
+```
+
+## 3.2 Threshold Autoregressive Model
+
+```{r, echo=FALSE}
+dabortion <- diff(ts_abortion)
+abortion.tar = setar(dabortion, m = 4, thDelay = 0, th = 0.05)
+summary(abortion.tar)
+```
+
+\newpage
+
+# 4 Results
+
+Below are the results of my applied methods.
+
+## 4.1 Results from SARIMA (p, d, q) x (P, D, Q)
+
+These are the plots of the original and transformed data.
+
+```{r, echo=FALSE, out.width="50%"}
+plot.ts(ts(data = abortion$Total, start = 1973, end = 2016), 
+        xlab = "Year", 
+        ylab = "Abortions per 1000 Women", 
+        main = "Original")
+
+plot.ts(ts_abortion_monthly, 
+        xlab = "Year",
+        ylab = "Abortions per 1000 Women", 
+        main = "Transformed")
+```
+
+Below are the plots of the ACF and PACF.
+
+```{r, echo=FALSE, out.width="50%"}
+acf(ts_abortion_monthly, lag = 12, main = "ACF")
+pacf(ts_abortion_monthly, lag = 12, main = "PACF")
+```
+
+These are the results of the forecast for the next 12 months. The predicted average abortions per 1000 women for the next 12 months is 13.92.
+
+```{r, echo=FALSE}
+forecastSarima <- forecast(sarimaModel)
+forecastSarima$mean %>% head(12)
+
+avg <- (14.12809 + 13.92238 + 13.78338 + 13.83995 + 14.13859 + 13.85841 
+        + 14.03255 + 14.00405 + 13.67460 + 13.89647 + + 13.88096 + 13.86894) / 12
+```
+
+Below are the diagnostics and model selection.
+
+```{r, echo=FALSE}
+summary(sarimaModel)
+```
+
+## 4.2 Results from Threshold Model
+
+These are the plots of the original and transformed data.
+
+```{r, echo=FALSE, out.width="50%"}
+dabortion <- diff(ts_abortion)
+plot(dabortion, type = "c", ylab = "Events per 1000 Women")
+months <- c("J","F","M","A","M","J","J","A","S","O","N","D")
+points(dabortion, pch = months, cex = 0.8, font = 2)
+
+dabortion <- diff(ts_abortion)
+thrsh = 0.05 # threshold
+Z <- ts.intersect(dabortion, stats::lag(dabortion, -1), stats::lag(dabortion, -2), 
+                  stats::lag(dabortion, -3), stats::lag(dabortion, -4))
+
+ind1 = ifelse(Z[, 2] < thrsh, 1, NA) # indicator < threshold
+ind2 = ifelse(Z[, 2] < thrsh, NA, 1) # indicator >= threshold 
+
+X1 = Z[, 1] * ind1
+X2 = Z[, 1] * ind2
+
+fit1 <- lm(X1 ~ Z[, 2:5])
+fit2 <- lm(X2 ~ Z[, 2:5])
+
+D = cbind(rep(1, nrow(Z)), Z[, 2:5]) # get predictions
+b1 = fit1$coef
+b2 = fit2$coef
+p1 = D%*%b1
+p2 = D%*%b2
+prd = ifelse(Z[, 2] < thrsh, p1, p2)
+
+# plot
+plot(dabortion, type = "p", pch = 2, ylim = c(-4, 4), ylab = "Events per 1000 Women")
+lines(prd, lty = 4)
+prde1 = sqrt(sum(resid(fit1)^2)/df.residual(fit1))
+prde2 = sqrt(sum(resid(fit2)^2)/df.residual(fit2))
+prde = ifelse(Z[, 2] < thrsh, prde1, prde2)
+lines(prd + 2 * prde)
+lines(prd - 2 * prde)
+```
+
+Below are the plots of the ACF, PACF, and more.
+
+```{r, echo=FALSE, out.width="50%"}
+dabortion <- diff(ts_abortion)
+abortion.tar = setar(dabortion, m = 4, thDelay = 0, th = 0.05)
+plot(abortion.tar)
+```
+
+Below are the diagnostics.
+
+```{r, echo=FALSE}
+summary(fit1 <- lm(X1 ~ Z[, 2:5])) # case 1
+summary(fit2 <- lm(X2 ~ Z[, 2:5])) # case 2
+```
+
+\newpage
+
+# Conclusion and Future Study
+
+By performing my chosen methods of analysis (SARIMA modeling and TAR modeling) I was able to find that the time series for abortion rates in the United States from 1973 to 2016 is non-linear and non-stationary. The Seasonal ARIMA model predicted a steady decline of abortion rates, with a predicted value of 13.92 abortions per 1000 women in the next 12 months after 2016. The ACF and PACF of the time series of the monthly abortion rates seem consistent with the original data. After fitting the Seasonal ARIMA model, I found the model to be ARIMA(4,2,3)(1,0,1)[12]. Now for TAR modeling, it can be seen from the plot of the original time series that there is a sharp decrease in the earlier years of the study with a few sharp increases throughout the following years. The transformed data, which took a first difference, matches these trends with a somewhat consistent downward trend. The plots of lag show a positive correlation but there does not seem to be any significant differences with the plots as the lag increases. The summary of the first case of the TAR modeling show that there is a 0.05 significance on the lag with k = -2. In the summaries of both cases, the p-values are 0.2405 for case 1 and 0.05845 for case 2; both p-values are greater than the threshold = 0.05 which mean that the alternative hypothesis is favored.
+
+With the results of the analysis, I infer that changes in attitudes and laws surrounding abortions caused the downward trend over time, especially in the 1970s. It could also be attributed to the fact that sex education in American schools have improved over time, thus leading to overall less pregnancies, births, and abortions. As younger people become more educated about the logistics of reproduction, this will significantly affect their decision making surrounding pregnancy.
+
+In a future study, we can use the same data set and focus on the pregnancy and birth rates to determine possible future trends in the United States. We can use the results of that study to make inferences about (possible) changing attitudes towards pregnancy and birth, especially with women belonging to a younger age group. Another possible focus could be how these rates differ throughout each state, taking the general political and religious affiliation of each state into consideration. Time series studies done on pregnancy, birth, and abortion rates are very important to the future of reproductive rights and sex education in the United States as well as the future of the US human population, which affects many other industries such as the job industry. With this in mind, we can use time series analysis to learn more about behavioral patterns and collective attitudes towards abortion, thus creating a safer and better environment for women and people who are able to reproduce.
+
+\newpage
+
+# References
+
+### Penn State University
+https://online.stat.psu.edu/stat510/lesson/13/13.2
+
+### Wikipedia
+https://en.wikipedia.org/wiki/SETAR_(model)
+
+### Statistics And Its Interface
+https://users.ssc.wisc.edu/~bhansen/papers/saii_11.pdf
+
+### Hopkins Bloomberg Public Health Magazine
+https://magazine.jhsph.edu/2022/brief-history-abortion-us
+
+### Time Series Analysis and Its Applications, Third Edition, by Shumway and Stoffer
+the class textbook
